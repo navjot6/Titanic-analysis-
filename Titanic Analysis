@@ -1,0 +1,206 @@
+# Importing required libraries
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load dataset
+dataset = pd.read_csv('Titanic-Dataset.csv')
+print(dataset)
+
+# Checking dataset structure and basic info
+dataset.shape                 # Shape of dataset (rows, columns)
+dataset.columns               # Column names
+dataset.isnull().sum()        # Checking missing values
+dataset.dtypes                # Data types of each column
+dataset.info()                # More details about dataset
+dataset.describe()            # Statistical summary of numerical columns
+dataset.head()                # First 5 rows
+dataset.duplicated().sum()    # Count duplicate rows
+
+# Removing duplicates if any
+dataset.drop_duplicates(inplace=True)
+
+# Checking PassengerId occurrences
+dataset["PassengerId"].value_counts()
+
+# Central tendency measures
+dataset['Age'].mean()
+dataset['Age'].median()
+dataset['Fare'].mode()
+
+# Replacing PassengerId with Pclass
+dataset["PassengerId"] = dataset['Pclass'].fillna(0, inplace=True)
+
+# Checking passengers with maximum Age
+dataset[dataset.Age == dataset.Age.max()].shape[0]
+dataset[dataset["Age"] == dataset["Age"].max()]["PassengerId"]
+
+# Frequency counts
+dataset["Age"].value_counts()
+
+# Wrong query (trying to compare Age with string "Name")
+dataset[dataset["Age"] == "Name"]
+
+# Correlation between Age and Survival
+dataset[["Age","Survived"]].corr()
+
+# Selecting only numerical columns
+num_col = dataset.select_dtypes(include="number")
+num_col.corr()
+
+# Scatter plot between Age and Fare
+plt.scatter(dataset["Age"], dataset["Fare"])
+plt.xlabel("Age")
+plt.ylabel("Fare")
+plt.title("Scatter plot on Age and Fare")
+
+# Boxplot (Age distribution by Survived)
+sns.boxplot(x=dataset['Survived'], y=dataset['Age'])
+
+# Histogram of Age
+dataset['Age'].hist(bins=50)
+plt.show()
+
+# Pairplot (relationships between numerical columns)
+sns.pairplot(dataset)
+
+# Heatmap of correlations
+sns.heatmap(num_col.corr(), annot=True)
+
+# Checking outliers with boxplots for selected columns
+columns = ["Survived","Fare","Age","Pclass","SibSp"]
+for i in columns:
+    plt.figure()
+    sns.boxplot(y=i, data=dataset)
+
+# Scatter plot of Age vs Survived
+plt.scatter(dataset['Age'], dataset['Survived'])
+plt.show()
+
+# Outlier detection using IQR
+Q1 = dataset['Survived'].quantile(0.25)
+Q3 = dataset['Age'].quantile(0.75)
+IQR = Q3 - Q1
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+outliers = dataset[(dataset['Survived'] < lower_bound) | (dataset['Age'] > upper_bound)]
+
+# Correlation of numerical columns
+num_corr = dataset.select_dtypes(include ='number')
+num_corr.corr()
+
+# Checking Q1 and Q3 for multiple columns
+columns = ["PassengerId","Survived","Pclass","Age","SibSp","Parch","Fare"]
+for i in columns:
+    percentile25 = dataset[i].quantile(0.25)
+    percentile75 = dataset[i].quantile(0.75)
+    print(f"q1 {i} = {percentile25} and q3 {i} = {percentile75} ")
+
+# Removing outliers from Age and Survived
+columns = ["Age","Survived"]
+for i in columns:
+    percentile25 = dataset[i].quantile(0.25)
+    percentile75 = dataset[i].quantile(0.75)
+print(f"q1 {i} = {percentile25} and q3 {i} = {percentile75} ")
+IQR = percentile75 - percentile25
+print(f"IQR of {i} = {IQR}")
+
+upperlimit = percentile75 + (1.5*IQR)
+print(f"upper limit of {i} = {upperlimit}")
+lowerlimit = percentile25 - (1.5*IQR)
+print(f"lower limit of {i} = {lowerlimit}")
+
+# Filtering dataset within limits
+dataset = dataset[(dataset[i] < upperlimit) & (dataset[i] > lowerlimit)]
+
+# Boxplot after outlier removal
+plt.figure()
+sns.boxplot(y=i, data=dataset)
+print(f"rows and columns of df after removing outliers = {dataset.shape}")
+
+# Cleaned data based on bounds
+data_clean = dataset[(dataset['Survived'] >= lower_bound) & (dataset['Age'] <= upper_bound)]
+
+# Scaling numerical columns using RobustScaler
+from sklearn.preprocessing import RobustScaler
+scaler = RobustScaler()
+data_scaled = scaler.fit_transform(dataset[['Survived', 'Age']])
+
+# Handling missing values using median imputation
+from sklearn.impute import SimpleImputer
+imputer = SimpleImputer(strategy='median')
+dataset['Survived'] = imputer.fit_transform(dataset[['Age']])  
+
+# Label Encoding categorical columns
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+
+df_dummy_labelencoding = dataset.copy()
+for i in df_dummy_labelencoding.select_dtypes(include="object"):
+    df_dummy_labelencoding[i] = le.fit_transform(df_dummy_labelencoding[i])
+
+# Dropping Age column
+if 'Age' in df_dummy_labelencoding.columns:
+    df_dummy_labelencoding = df_dummy_labelencoding.drop('Age', axis=1)
+
+df_dummy_labelencoding.head(2)
+
+# Splitting data into X and y
+X = df_dummy_labelencoding.iloc[:,0:-1].values
+y = df_dummy_labelencoding.iloc[:,-3].values   # Check if correct target column is chosen
+
+# Train-test split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Random Forest Classifier
+from sklearn.ensemble import RandomForestClassifier
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+
+print("Unique values in y_train:", set(y_train))
+
+# Convert y to integers if required
+if y_train.dtype != 'int':
+    y_train = y_train.astype(int)
+
+# Fit model
+rf_model.fit(X_train, y_train)
+y_pred = rf_model.predict(X_test)
+
+# Linear Regression
+from sklearn.linear_model import LinearRegression
+reg = LinearRegression()
+reg.fit(X_train, y_train)
+
+reg.score(X_test, y_test)    # R² score on test data
+reg.score(X_train, y_train)  # R² score on train data
+reg.intercept_
+
+# Mean Absolute Error 
+from sklearn import metrics
+MSE = metrics.mean_absolute_error(y_test, y_pred)
+MSE
+
+# Polynomial Regression (degree=1 → linear model)
+X_train_poly, X_test_poly, y_train_poly, y_test_poly = train_test_split(X, y, test_size=0.25, random_state=5)
+
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+poly_model = make_pipeline(PolynomialFeatures(degree=1), LinearRegression())
+poly_model.fit(X_train_poly, y_train_poly)
+y_pred_poly = poly_model.predict(X_test_poly)
+
+# Accuracy score for classification
+from sklearn.metrics import accuracy_score
+accuracy = accuracy_score(y_test, y_pred)
+print("Accuracy Score:", accuracy)
+
+# Classification report 
+from sklearn.metrics import classification_report
+print(classification_report(y_test, y_pred))
+
+# Standard Scaling before Logistic Regression
+from sklearn.preprocessing import StandardScaler
+ss = StandardScaler()
+X_train = ss.fit_transform(X_train)
+X_test = ss.fit_transform(X_test)
